@@ -6,9 +6,9 @@
 
 namespace DXSS {
 	const int particle_layers = 6;
-	const int particle_x_dim = 60;
-	const int particle_z_dim = 60;
-	const int particles_total = 3600;
+	const int particle_x_dim = 10;
+	const int particle_z_dim = 10;
+	const int particles_total = 100;
 	float t = 0.0f;
 
 	union pixel {
@@ -200,12 +200,11 @@ namespace DXDD {
 	}
 
 	void blur(image * img) {
-		// 1-time blur operation.
 		DXSS::pixel p;
 		unsigned short r, g, b, a;
+
 		for (int y = 1; y < img->w - 1; y++) {
 			for (int x = 1; x < img->h - 1; x++) {
-
 				p.col = img->pixels[(y * img->w) + (x - 1)];
 				r = p.r; g = p.g; b = p.b; a = p.a;
 				p.col = img->pixels[(y * img->w) + (x + 1)];
@@ -224,7 +223,7 @@ namespace DXDD {
 		}
 	}
 
-	void constructSky(image * sky, int sw, int sh) {
+	void constructSky(image * sky, FastNoise& n, int sw, int sh) {
 		sky->init(sw, sh);
 		const int num_sky_stops = 6;
 		DXSS::range sky_stops[num_sky_stops] = {
@@ -245,6 +244,7 @@ namespace DXDD {
 		}
 
 		detail::Uint32 sky_col = 0x00000000;
+		DXSS::pixel pix;
 		for (int y = 0; y < sh; y++) {
 			for (int t = 0; t < num_sky_stops; t++) {
 				if ((y > sky_stops[t].ys) && (y < sky_stops[t].ye)) {
@@ -253,7 +253,14 @@ namespace DXDD {
 				}
 			}
 			for (int x = 0; x < sw; x++) {
-				sky->pixels[(y * sw) + x] = sky_col;
+				// Need to get noise param at this point.
+				float scale = 0.5f;// n.GetNoise((float)x, (float)y) * 64.0f;
+				pix.col = sky_col;
+				short bb = pix.b + (64.0f * scale);
+				short rr = pix.r - (32.0f * scale);
+				pix.b = (bb > 255 ? bb >> 1 : bb);
+				pix.r = (rr < 0 ? pix.r : rr);
+				sky->pixels[(y * sw) + x] = pix.col;
 			}
 		}
 		blur(sky);
@@ -262,10 +269,10 @@ namespace DXDD {
 	void constructSun(image * sun, int sw, int sh) {
 		sun->init(sw, sh);
 		//DXSS::range sun_range = { {0x00FFF4CD}, {0x00FF6D13}, 32, 96 };
-		DXSS::range sun_range = { {0x00FFF4CD}, {0x00FF0004}, 32, 96 };
+		DXSS::range sun_range = { {0x00FFFFFF}, {0x00FF0004}, 48, 80 };
 
 		// The sun will be 1/2 of the size of the given width / h.
-		int sun_radius = sw >> 2;
+		int sun_radius = sw >> 3;
 
 		pointf pt;
 		pointf origin;
@@ -395,7 +402,7 @@ DWORD WINAPI Update(LPVOID lpParameter) {
 	DXSS::particlefield field;
 	DXDD::image sky, sun, bg;
 	bg.init(_WIDTH, _HEIGHT);
-	DXDD::constructSky(&sky, _WIDTH >> 1, _HEIGHT >> 1);
+	DXDD::constructSky(&sky, noise, _WIDTH >> 1, _HEIGHT >> 1);
 	DXDD::constructSun(&sun, _WIDTH >> 1, _HEIGHT >> 1);
 	DXDD::constructBG(&bg, &sky, &sun, _WIDTH, _HEIGHT);
 
