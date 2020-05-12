@@ -74,6 +74,8 @@ public:
 	delete[] m_depthBuffer;
     m_pixels = NULL;
     m_backBuffer = NULL;
+	m_w = 0;
+	m_h = 0;
   }
 
   void SetScreen(unsigned char *buffer, HDC screenDC, HDC memDC) {
@@ -147,7 +149,7 @@ public:
   Renderer(const char *const className, LPTHREAD_START_ROUTINE callback,
            detail::IBitmapRenderer *renderer);
 
-  ~Renderer() { updateThread.Join(); }
+  ~Renderer() { /*updateThread.Join();*/ }
 
   bool IsRunning() { return bRunning; }
 
@@ -205,9 +207,9 @@ long __stdcall WindowProcedure(HWND window, unsigned int msg, WPARAM wp,
                                LPARAM lp) {
   switch (msg) {
   case WM_DESTROY:
-    PostQuitMessage(0);
     if (g_renderer)
       g_renderer->SetRunning(false);
+    PostQuitMessage(0);
     return 0L;
   case WM_KEYDOWN:
     HandleKey(wp);
@@ -298,8 +300,10 @@ Renderer::Renderer(const char *const className, LPTHREAD_START_ROUTINE callback,
 
       ShowWindow(window, SW_SHOWDEFAULT);
       MSG msg;
-      while (GetMessage(&msg, 0, 0, 0))
-        DispatchMessage(&msg);
+	  while (GetMessage(&msg, 0, 0, 0)) { DispatchMessage(&msg); }
+	  OutputDebugString("Received Quit Message!");
+	  updateThread.Join();
+	  OutputDebugString("Update Thread Joined!");
     }
   }
 }

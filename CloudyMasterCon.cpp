@@ -288,7 +288,7 @@ namespace DXDD {
 			}
 			for (int x = 0; x < sw; x++) {
 				// Need to get noise param at this point.
-				float scale = 0.5f;// n.GetNoise((float)x, (float)y) * 64.0f;
+				float scale = 0.5f;
 				pix.col = sky_col;
 				short bb = pix.b + (64.0f * scale);
 				short rr = pix.r - (32.0f * scale);
@@ -377,12 +377,6 @@ namespace DXDD {
 				p.b = b > 255 ? 255 : b;
 				p.a = a > 255 ? 255 : a;
 				
-				/*
-				p.r = r > 255 ? r >> 1 : r;
-				p.g = g > 255 ? g >> 1 : g;
-				p.b = b > 255 ? b >> 1 : b;
-				p.a = a > 255 ? a >> 1 : a;
-				*/
 				temp.pixels[idx] = p.col;
 				idx++;
 			}
@@ -394,33 +388,30 @@ namespace DXDD {
 			int sx = 0;
 			for (int x = 0; x < bw; x += 2) {
 				unsigned int pix = temp.pixels[(sy * sky->w) + sx];
-				bg->pixels[((y + 0) * bw) + (x + 0)] = pix;//  temp.pixels[(sy * sky->w) + sx];
-				bg->pixels[((y + 1) * bw) + (x + 0)] = pix;//  temp.pixels[(sy * sky->w) + sx];
-				bg->pixels[((y + 0) * bw) + (x + 1)] = pix;//  temp.pixels[(sy * sky->w) + sx];
-				bg->pixels[((y + 1) * bw) + (x + 1)] = pix;//  temp.pixels[(sy * sky->w) + sx];
+				bg->pixels[((y + 0) * bw) + (x + 0)] = pix;
+				bg->pixels[((y + 1) * bw) + (x + 0)] = pix;
+				bg->pixels[((y + 0) * bw) + (x + 1)] = pix;
+				bg->pixels[((y + 1) * bw) + (x + 1)] = pix;
 				sx++;
 			}
 			sy++;
 		}
-		/*
-		for (int y = 0; y < sky->h; y++) {
-			unsigned int *row1 = &bg->pixels[((y << 1) * bw)];
-			unsigned int *row2 = &bg->pixels[(((y << 1) + 1) * bw)];
-			for (int x = 0; x < sky->w; x++) {
-				unsigned int pix = temp.pixels[(y * sky->w) + x];
-				// Diamond pattern
-				// row1[(x << 1)] = pix;
-				// row2[(x << 1) + 1] = pix;
-				
-				row1[(x << 1)] = pix;
-				row1[(x << 1) + 1] = pix;
-				row2[(x << 1)] = pix;
-				row2[(x << 1) + 1] = pix;
-				// bg->pixels[((y << 1) * bw) + (x << 1)] = temp.pixels[(y * sky->w) + x];
-				// bg->pixels[((y << 1) * bw) + (x << 1) + 1] = temp.pixels[(y * sky->w) + x];
+	}
+
+	void constructGND(image * gnd, int w, int h, FastNoise& n) {
+		gnd->init(w, h);
+
+		util::pixel * px = reinterpret_cast<util::pixel*>(gnd->pixels);
+		float scale = n.GetNoise(0.0f, 0.0f) * 64.0f;
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				px[(y * w) + x].r = (unsigned char)((128.0f * scale) + 128.0f);
+				px[(y * w) + x].g = (unsigned char)((64.0f * scale) + 64.0f);
+				px[(y * w) + x].b = (unsigned char)((128.0f * scale) + 128.0f);
+				px[(y * w) + x].a = (unsigned char)((64.0f * scale) + 191.0f);
+				scale = n.GetNoise((float)x, (float)y) * 2.0f;
 			}
 		}
-		*/
 	}
 }; // namespace DXDD
 
@@ -561,40 +552,6 @@ namespace sim_m9 {
 
 		return px[sy * w + sx];
 	}
-	void LoadTexture(unsigned int * t, const char * fn, int sz) {
-		/*
-		FILE * fp = fopen(fn, "rb");
-		if (fp) {
-			fread(t, 4, sz, fp);
-			fclose(fp);
-		}
-		else*/
-		{
-			int i = sz - 1;
-			util::pixel * px = reinterpret_cast<util::pixel*>(t);
-			while (i > 0) {
-				float scale = ((float)rand() / (float)RAND_MAX); // between 0 and 1
-
-				px[i].r = 64 + (unsigned char)((float)192.0f * scale);
-				px[i].g = 96 + (unsigned char)((float)159.0f * scale);
-				px[i].b = 128 + (unsigned char)((float)128.0f * scale);
-				px[i].a = 64 + (unsigned char)((float)192.0f * scale);
-				--i;
-			}
-		}
-
-
-		util::pixel * px = reinterpret_cast<util::pixel*>(t);
-		int i = sz - 1;
-		while (i > 0) {
-			util::pixel& p = px[i];
-			p.a = 0;
-			unsigned char r = p.r;
-			p.r = p.b;
-			p.b = r;
-			--i;
-		}
-	}
 
 	struct Simulation {
 		float fWorldX;
@@ -604,66 +561,24 @@ namespace sim_m9 {
 		float fFar;
 		float fFoVHalf;
 
-		unsigned int *ground;
-		//ui *sky;
-		float * fSeed;
-		int nMapSize = 1024;
-
 		Simulation() {
 			fWorldX = 1000.0f;
 			fWorldY = 1000.0f;
-			fWorldA = 0.1f;
+			fWorldA = 90.0f;
 			fNear = -0.002f;
 			fFar = 0.17f;
 			fFoVHalf = 3.14159f / 4.0f;
-
-			const int sz = nMapSize * nMapSize;
-
-			ground = new unsigned int[sz];
-			LoadTexture(ground, "test1024.data", sz);
-
-			fSeed = new float[sz];
-			int i = 0;
-			while (i < sz) { fSeed[i] = static_cast<float>(rand()) / static_cast<float>(RAND_MAX); ++i; }
 		}
 		void Set(float fn, float ff) {
 			fNear = fn;
 			fFar = ff;
 		}
-		~Simulation() { delete[] ground; /*delete[] sky;*/ delete[] fSeed; }
-/*
-		float PNoise2D(int x, int y, int nOctaves, float fBias) {
-			float fNoise = 0.0f;
-			float fScaleAcc = 0.0f;
-			float fScale = 1.0f;
+		~Simulation() { }
 
-			for (int o = 0; o < nOctaves; o++) {
-				int nPitch = nMapSize >> o;
-				int nSampleX1 = (x / nPitch) * nPitch;
-				int nSampleY1 = (y / nPitch) * nPitch;
-
-				int nSampleX2 = (nSampleX1 + nPitch) % nMapSize;
-				int nSampleY2 = (nSampleY1 + nPitch) % nMapSize;
-
-				float fBlendX = (float)(x - nSampleX1) / (float)nPitch;
-				float fBlendY = (float)(y - nSampleY1) / (float)nPitch;
-
-				float fSampleT = (1.0f - fBlendX) * fSeed[nSampleY1 * nMapSize + nSampleX1] + fBlendX * fSeed[nSampleY1 * nMapSize + nSampleX2];
-				float fSampleB = (1.0f - fBlendX) * fSeed[nSampleY2 * nMapSize + nSampleX1] + fBlendX * fSeed[nSampleY2 * nMapSize + nSampleX2];
-
-				fScaleAcc += fScale;
-				fNoise += (fBlendY * (fSampleB - fSampleT) + fSampleT) * fScale;
-				fScale = fScale / fBias;
-			}
-			// Scale to seed range
-			return fNoise / fScaleAcc;
-		}
-*/
-		void Update(detail::Uint32 * b, int w, int h) {
-			float hw = static_cast<float>(w >> 1);
-			float hh = static_cast<float>(h >> 1);
+		void Update(detail::Uint32 * b, DXDD::image * gnd, int w, int h) {
 			int hwi = w >> 1;
-			int hhi = h >> 1;
+			int hhi = (h >> 1) - (h >> 2);
+			int hoh = (h >> 1);
 
 			//fWorldA += cc.d;
 
@@ -682,13 +597,11 @@ namespace sim_m9 {
 
 			float fNearX2 = fWorldX + cosf(fWorldA + fFoVHalf) * fNear;
 			float fNearY2 = fWorldY + sinf(fWorldA + fFoVHalf) * fNear;
-			// unsigned int color = 0xffffffff;
-			// util::pixel * pixel = reinterpret_cast<util::pixel*>(&color);
 
 			// Starting with furthest away line and work towards the camera point
 			for (int y = 0; y < hhi; y++) {
 				// Take a sample point for depth linearly related to rows down screen
-				float fSampleDepth = (static_cast<float>(y) / h) + 0.1f;
+				float fSampleDepth = (static_cast<float>(y) / hhi) + 0.1f;
 
 				// Use sample point in non-linear (1/x) way to enable perspective
 				// and grab start and end points for lines across the screen
@@ -706,37 +619,10 @@ namespace sim_m9 {
 					// Wrap sample coordinates to give "infinite" periodicity on maps
 					fSampleX = fmod(fSampleX, 1.0f);
 					fSampleY = fmod(fSampleY, 1.0f);
-					/*
-					// Sample symbol and colour from map sprite, and draw the
-					// pixel to the screen
-					float scale = PNoise2D(static_cast<int>(fSampleX * nMapSize), static_cast<int>(fSampleY * nMapSize), 4, 2.1f);
 
-					// Sample symbol and colour from sky sprite, we can use same
-					// coordinates, but we need to draw the "inverted" y-location
-					//col = SampleCol(sky, nMapSize, nMapSize, fSampleX, fSampleY);
+					unsigned int col = SampleCol(gnd->pixels, gnd->w, gnd->h, fSampleX, fSampleY);
 
-					pixel->r = 0xf0;
-					pixel->g = 0x00;
-					pixel->b = 0xff - static_cast<unsigned char>(scale);
-					pixel->a = 0;
-
-					surf.PlotPixel(x, hhi - y, color);
-					*/
-					/*
-					pixel->r = 0xff - t;
-					pixel->g = 0xff - t;
-					pixel->b = 0xff - t;
-					pixel->a = 0;
-					*/
-					unsigned int col = SampleCol(ground, nMapSize, nMapSize, fSampleX, fSampleY);
-					/*
-					pix * f = reinterpret_cast<pix*>(&col);
-					f->r -= u;
-					f->g -= u;
-					f->b -= u;
-					*/
-					b[((hhi + y) * w) + x] = col;
-					//surf.PlotPixel(x, hhi + y, (color & col) & 0x326464);
+					b[((hhi + hoh + y) * w) + x] = col;
 				}
 			}
 		}
@@ -754,11 +640,12 @@ DWORD WINAPI Update(LPVOID lpParameter) {
 	//DXSS::particlefield field;
 	sim::simulation s;
 	sim_m9::Simulation ss;
-	DXDD::image sky, sun, bg;
+	DXDD::image sky, sun, bg, gnd;
 	bg.init(_WIDTH, _HEIGHT);
 	DXDD::constructSky(&sky, noise, _WIDTH >> 1, _HEIGHT >> 1);
 	DXDD::constructSun(&sun, _WIDTH >> 1, _HEIGHT >> 1);
 	DXDD::constructBG(&bg, &sky, &sun, _WIDTH, _HEIGHT);
+	DXDD::constructGND(&gnd, _WIDTH, _HEIGHT, noise);
 
 	while (g_renderer->IsRunning()) {
 		//field.update(g_renderer->GetDirection(), noise);
@@ -783,32 +670,8 @@ DWORD WINAPI Update(LPVOID lpParameter) {
 		}
 
 		s.draw(buffer, depthBuffer, _WIDTH, _HEIGHT);
-		ss.Update(buffer, _WIDTH, _HEIGHT);
+		ss.Update(buffer, &gnd, _WIDTH, _HEIGHT);
 
-		/*
-		so one of the biggest issues with this is that we need to do a triple-nested loop, which runs in O(n^3) time,
-		which is obviously not ideal.
-		We need to select the color as part of the update step, so that the colors are part of the transformation calculation.
-		*/
-		detail::Uint32 col = 0xff0000ff;
-		/*
-		for (int i = 0; i < DXSS::particles_total; i++) {
-			if (field.particles[i].tx >= 0 && field.particles[i].tx < _WIDTH) {
-				if (field.particles[i].ty >= 0 && field.particles[i].ty < _HEIGHT) {
-					if (DXSS::depthTest(depthBuffer, field.particles[i].z, field.particles[i].tx, field.particles[i].ty, _WIDTH)) {
-						for (int t = 0; t < DXSS::particle_layers; t++) {
-							if ((field.particles[i].y > DXSS::color_stops[t].ys) &&
-								(field.particles[i].y < DXSS::color_stops[t].ye)) {
-								col = DXSS::color_stops[t].getCol(field.particles[i].y);
-								break;
-							}
-						}
-						buffer[(field.particles[i].ty * _WIDTH) + field.particles[i].tx] = col;
-					}
-				}
-			}
-		}
-		*/
 		g_renderer->screen.Flip();
 		g_renderer->updateThread.Delay(1);
 	}
